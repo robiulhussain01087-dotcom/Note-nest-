@@ -1,0 +1,6 @@
+{
+  "name": "NoteNest",
+  "description": "A scalable multi-education learning platform providing academic notes, video overviews, slide decks, flashcards, and quizzes for School (Class 9-12) and College (B.Com, B.A., B.Sc.) across multiple mediums.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

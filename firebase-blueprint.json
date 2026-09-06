@@ -1,0 +1,252 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profile",
+      "description": "User account information and role",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["customer", "admin"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "notes": {
+      "title": "Study Note",
+      "description": "B.Com study material and syllabus notes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "course": { "type": "string" },
+        "semester": { "type": "string" },
+        "subject": { "type": "string" },
+        "unit": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "pages": { "type": "number" },
+        "originalPrice": { "type": "number" },
+        "offerPrice": { "type": "number" },
+        "coverImageUrl": { "type": "string" },
+        "pdfFileName": { "type": "string" },
+        "published": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["title", "subject", "semester", "course", "offerPrice"]
+    },
+    "orders": {
+      "title": "Order",
+      "description": "Customer note order and payment proof",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "noteId": { "type": "string" },
+        "noteTitle": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentStatus": { "type": "string", "enum": ["pending", "paid", "rejected"] },
+        "utr": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["customerId", "noteId", "amount", "paymentStatus"]
+    },
+    "purchases": {
+      "title": "Purchase",
+      "description": "Customer verified purchase record and unlocked access",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "noteId": { "type": "string" },
+        "orderId": { "type": "string" },
+        "noteTitle": { "type": "string" },
+        "purchasedPrice": { "type": "number" },
+        "purchasedAt": { "type": "string" },
+        "accessStatus": { "type": "string" }
+      },
+      "required": ["customerId", "noteId", "purchasedPrice"]
+    },
+    "payments": {
+      "title": "Payment Verification Request",
+      "description": "Manual UPI payment verification request submitted by student",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerEmail": { "type": "string" },
+        "noteId": { "type": "string" },
+        "noteTitle": { "type": "string" },
+        "amount": { "type": "number" },
+        "utr": { "type": "string" },
+        "paymentDate": { "type": "string" },
+        "screenshotUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "successful", "rejected"] },
+        "adminNote": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "verifiedAt": { "type": "string" },
+        "verifiedBy": { "type": "string" }
+      },
+      "required": ["customerId", "noteId", "amount", "utr", "status"]
+    },
+    "settings": {
+      "title": "Store Settings",
+      "description": "Payment and application configuration",
+      "type": "object",
+      "properties": {
+        "methodName": { "type": "string" },
+        "upiId": { "type": "string" },
+        "accountName": { "type": "string" },
+        "qrCodeUrl": { "type": "string" },
+        "instructions": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "logoUrl": { "type": "string" },
+        "siteName": { "type": "string" },
+        "tagline": { "type": "string" },
+        "supportEmail": { "type": "string" },
+        "phone": { "type": "string" },
+        "primaryCourse": { "type": "string" },
+        "primarySemester": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      }
+    },
+    "chapters": {
+      "title": "Academic Chapter",
+      "description": "Educational chapter containing multiple topics across school and college hierarchy",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "chapterNumber": { "type": "string" },
+        "description": { "type": "string" },
+        "educationLevel": { "type": "string" },
+        "classOrCourse": { "type": "string" },
+        "stream": { "type": "string" },
+        "medium": { "type": "string" },
+        "semester": { "type": "string" },
+        "subject": { "type": "string" },
+        "accessType": { "type": "string", "enum": ["normal", "premium"] },
+        "originalPrice": { "type": "number" },
+        "offerPrice": { "type": "number" },
+        "price": { "type": "number" },
+        "groupId": { "type": "string" },
+        "topicsCount": { "type": "number" },
+        "published": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["title", "educationLevel", "classOrCourse", "medium", "subject"]
+    },
+    "groups": {
+      "title": "Academic Group",
+      "description": "Customizable educational syllabus group containing chapters",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "groupId": { "type": "string" },
+        "groupName": { "type": "string" },
+        "description": { "type": "string" },
+        "educationLevel": { "type": "string" },
+        "classOrCourse": { "type": "string" },
+        "medium": { "type": "string" },
+        "semester": { "type": "string" },
+        "subject": { "type": "string" },
+        "chapterIds": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of chapter IDs in this group playlist"
+        },
+        "chapterOrder": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ordered chapter IDs inside this group"
+        },
+        "order": { "type": "number" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "groupName", "subject", "order", "active"]
+    },
+    "topics": {
+      "title": "Chapter Topic",
+      "description": "Topic within a chapter containing PDF, Video, Slides, Flashcards, and Quizzes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "chapterId": { "type": "string" },
+        "topicName": { "type": "string" },
+        "order": { "type": "number" },
+        "pdfUrl": { "type": "string" },
+        "pdfAccess": { "type": "string", "enum": ["normal", "premium"] },
+        "videoUrl": { "type": "string" },
+        "videoAccess": { "type": "string", "enum": ["normal", "premium"] },
+        "slidesUrl": { "type": "string" },
+        "slidesAccess": { "type": "string", "enum": ["normal", "premium"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["chapterId", "topicName"]
+    },
+    "plans": {
+      "title": "Access Plan",
+      "description": "Normal or Premium tier subscription configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "description": { "type": "string" },
+        "active": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "price"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/users" },
+      "description": "User profile with role and plan"
+    },
+    "/groups/{groupId}": {
+      "schema": { "$ref": "#/entities/groups" },
+      "description": "Customizable educational syllabus groups"
+    },
+    "/chapters/{chapterId}": {
+      "schema": { "$ref": "#/entities/chapters" },
+      "description": "Educational chapters"
+    },
+    "/topics/{topicId}": {
+      "schema": { "$ref": "#/entities/topics" },
+      "description": "Topics with multi-content"
+    },
+    "/plans/{planId}": {
+      "schema": { "$ref": "#/entities/plans" },
+      "description": "Normal and Premium pricing plans"
+    },
+    "/notes/{noteId}": {
+      "schema": { "$ref": "#/entities/notes" },
+      "description": "B.Com study notes"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/orders" },
+      "description": "Orders and UPI payments"
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/payments" },
+      "description": "Manual UPI verification requests"
+    },
+    "/purchases/{purchaseId}": {
+      "schema": { "$ref": "#/entities/purchases" },
+      "description": "Customer active purchases"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/settings" },
+      "description": "Global store and payment settings"
+    }
+  }
+}

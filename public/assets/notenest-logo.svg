@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="800" viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Brand colors -->
+    <linearGradient id="navyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b2447" />
+      <stop offset="100%" stop-color="#04152d" />
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38a169" />
+      <stop offset="100%" stop-color="#2f855a" />
+    </linearGradient>
+    <linearGradient id="brightGreenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#48bb78" />
+      <stop offset="100%" stop-color="#276749" />
+    </linearGradient>
+    <linearGradient id="goldGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ECC94B" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#ECC94B" stop-opacity="0.1" />
+    </linearGradient>
+    <filter id="logoShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.15" />
+    </filter>
+  </defs>
+
+  <!-- Clean Circular Emblem White Background -->
+  <circle cx="400" cy="400" r="390" fill="#FFFFFF" stroke="#F1F5F9" stroke-width="4" filter="url(#logoShadow)" />
+
+  <!-- Outer Ring Accent Arc -->
+  <circle cx="400" cy="400" r="365" fill="none" stroke="#0F2850" stroke-width="3" stroke-dasharray="14 10" opacity="0.35" />
+  <circle cx="400" cy="400" r="350" fill="none" stroke="#0F2850" stroke-width="1.5" opacity="0.25" />
+
+  <!-- Laurel Leaves across the top arc -->
+  <g id="topLaurel" fill="#38A169">
+    <!-- Left Laurel Leaf cluster -->
+    <path d="M230 180 C240 165 260 160 275 170 C260 185 240 185 230 180 Z" />
+    <path d="M260 150 C272 138 292 135 305 147 C290 160 270 158 260 150 Z" />
+    <path d="M295 125 C310 115 330 115 342 128 C325 140 305 135 295 125 Z" />
+    <path d="M335 110 C352 102 372 105 382 120 C365 130 345 122 335 110 Z" />
+
+    <!-- Right Laurel Leaf cluster -->
+    <path d="M570 180 C560 165 540 160 525 170 C540 185 560 185 570 180 Z" />
+    <path d="M540 150 C528 138 508 135 495 147 C510 160 530 158 540 150 Z" />
+    <path d="M505 125 C490 115 470 115 458 128 C475 140 495 135 505 125 Z" />
+    <path d="M465 110 C448 102 428 105 418 120 C435 130 455 122 465 110 Z" />
+  </g>
+
+  <!-- Golden Radiating Rays behind star -->
+  <g stroke="#ECC94B" stroke-width="2.5" opacity="0.75" stroke-linecap="round">
+    <line x1="400" y1="140" x2="400" y2="95" />
+    <line x1="380" y1="145" x2="360" y2="105" />
+    <line x1="420" y1="145" x2="440" y2="105" />
+    <line x1="365" y1="155" x2="330" y2="125" />
+    <line x1="435" y1="155" x2="470" y2="125" />
+  </g>
+
+  <!-- 5-Pointed Emerald Star -->
+  <polygon points="400,120 409,144 434,144 414,159 421,183 400,169 379,183 386,159 366,144 391,144" fill="#38A169" filter="url(#logoShadow)" />
+
+  <!-- Graduation Mortarboard inside Nest -->
+  <!-- Mortarboard Cap Top (Diamond) -->
+  <polygon points="400,200 485,228 400,256 315,228" fill="url(#navyGrad)" />
+  <!-- Mortarboard Skullcap Underneath -->
+  <path d="M350 242 L350 262 C350 282 450 282 450 262 L450 242 Z" fill="#0A1C36" />
+  <!-- Lime Green Button and Tassel -->
+  <circle cx="400" cy="228" r="5" fill="#4ADE80" />
+  <path d="M400 228 C435 235 448 245 450 265" fill="none" stroke="#4ADE80" stroke-width="3.5" stroke-linecap="round" />
+  <!-- Tassel Brush -->
+  <polygon points="446,265 454,265 456,280 444,280" fill="#4ADE80" />
+
+  <!-- The Twig Nest cradling the cap and book -->
+  <g fill="none" stroke="#0F2850" stroke-linecap="round">
+    <!-- Nest Branches Curves -->
+    <path d="M290 285 Q400 325 510 285" stroke-width="8" />
+    <path d="M280 295 Q400 340 520 295" stroke-width="6" stroke="#1E3A8A" />
+    <path d="M305 305 Q400 348 495 305" stroke-width="5" stroke="#38A169" />
+    <path d="M270 288 Q330 310 400 315" stroke-width="4" stroke="#0F2850" />
+    <path d="M400 315 Q470 310 530 288" stroke-width="4" stroke="#0F2850" />
+    <!-- Twig Details sticking out -->
+    <line x1="280" y1="290" x2="265" y2="280" stroke-width="4" stroke="#0F2850" />
+    <line x1="520" y1="290" x2="535" y2="280" stroke-width="4" stroke="#0F2850" />
+    <line x1="295" y1="305" x2="280" y2="315" stroke-width="3.5" stroke="#1E3A8A" />
+    <line x1="505" y1="305" x2="520" y2="315" stroke-width="3.5" stroke="#1E3A8A" />
+  </g>
+
+  <!-- Open Book Foundation -->
+  <g id="openBook">
+    <!-- Dark Blue Hard Cover Outer Spine/Base -->
+    <path d="M220 420 Q310 435 400 405 Q490 435 580 420 L570 435 Q490 450 400 420 Q310 450 230 435 Z" fill="#0A192F" />
+
+    <!-- Left Open Pages with Emerald Accent -->
+    <path d="M230 415 Q310 430 400 400 L400 355 Q310 380 230 370 Z" fill="#F8FAFC" stroke="#0F2850" stroke-width="3" />
+    <path d="M230 405 Q310 420 400 390 L400 345 Q310 370 230 360 Z" fill="#FFFFFF" stroke="#38A169" stroke-width="2.5" />
+
+    <!-- Right Open Pages with Emerald Accent -->
+    <path d="M570 415 Q490 430 400 400 L400 355 Q490 380 570 370 Z" fill="#F8FAFC" stroke="#0F2850" stroke-width="3" />
+    <path d="M570 405 Q490 420 400 390 L400 345 Q490 370 570 360 Z" fill="#FFFFFF" stroke="#38A169" stroke-width="2.5" />
+
+    <!-- Book Page Lines (representing knowledge/notes) -->
+    <g stroke="#CBD5E1" stroke-width="2" stroke-linecap="round">
+      <line x1="260" y1="375" x2="370" y2="363" />
+      <line x1="260" y1="387" x2="370" y2="375" />
+      <line x1="260" y1="399" x2="350" y2="387" />
+
+      <line x1="430" y1="363" x2="540" y2="375" />
+      <line x1="430" y1="375" x2="540" y2="387" />
+      <line x1="450" y1="387" x2="540" y2="399" />
+    </g>
+
+    <!-- Center Spine Ribbon / Bookmark -->
+    <path d="M400 390 L400 445 L408 438 L416 445 L416 390 Z" fill="#38A169" />
+  </g>
+
+  <!-- Typography: "NoteNest" -->
+  <g transform="translate(400, 560)">
+    <text x="-12" y="0" font-family="'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif" font-size="88" font-weight="900" fill="#0A1E3F" letter-spacing="-2" text-anchor="end">Note</text>
+    <text x="0" y="0" font-family="'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif" font-size="88" font-weight="900" fill="#38A169" letter-spacing="-2" text-anchor="start">Nest</text>
+  </g>
+
+  <!-- Divider Line with Diamond Center -->
+  <g transform="translate(400, 600)">
+    <line x1="-220" y1="0" x2="-25" y2="0" stroke="#0F2850" stroke-width="2" opacity="0.75" />
+    <polygon points="0,-6 6,0 0,6 -6,0" fill="#38A169" />
+    <line x1="25" y1="0" x2="220" y2="0" stroke="#0F2850" stroke-width="2" opacity="0.75" />
+  </g>
+
+  <!-- Subtitle Tagline: "LEARN • PREPARE • SUCCEED" -->
+  <g transform="translate(400, 645)">
+    <text x="0" y="0" font-family="'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif" font-size="22" font-weight="800" fill="#1E293B" letter-spacing="6" text-anchor="middle">
+      LEARN <tspan fill="#38A169">•</tspan> PREPARE <tspan fill="#38A169">•</tspan> SUCCEED
+    </text>
+  </g>
+</svg>

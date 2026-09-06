@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /users/{userId} {
+      // User can read their own profile, or Admin can read any
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // New registration can set role to 'customer' for their own uid
+      allow create: if (isOwner(userId) && request.resource.data.role == 'customer') || isAdmin();
+      
+      // User cannot elevate their own role to 'admin'. Role modifications restricted to admins.
+      allow update: if (isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin();
+      
+      // Only Admin can delete accounts
+      allow delete: if isAdmin();
+    }
+    
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (resource.data.customerId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.customerId == request.auth.uid;
+      // Status changes and verification must be performed by admin only
+      allow update: if isAdmin() || (isAuthenticated() && resource.data.customerId == request.auth.uid && request.resource.data.paymentStatus == resource.data.paymentStatus);
+      allow delete: if isAdmin();
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && (resource.data.customerId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.customerId == request.auth.uid && request.resource.data.status == 'pending';
+      // Status approval/rejection must be performed by admin only
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    match /purchases/{purchaseId} {
+      allow read: if isAuthenticated() && (resource.data.customerId == request.auth.uid || isAdmin());
+      allow write: if isAdmin();
+    }
+    
+    match /notes/{noteId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /groups/{groupId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /chapters/{chapterId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /topics/{topicId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /plans/{planId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
