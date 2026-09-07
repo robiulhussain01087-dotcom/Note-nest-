@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SettingsProvider } from './context/SettingsContext';
+import { CurriculumProvider } from './context/CurriculumContext';
 import { NoteNestDB } from './services/db';
 import { getFirebaseAuth, isFirebaseConfigured } from './services/firebase';
 import { Note, Chapter } from './types';
@@ -673,7 +674,9 @@ export default function App() {
   return (
     <SettingsProvider>
       <AuthProvider>
-        <MainContent />
+        <CurriculumProvider>
+          <MainContent />
+        </CurriculumProvider>
       </AuthProvider>
     </SettingsProvider>
   );

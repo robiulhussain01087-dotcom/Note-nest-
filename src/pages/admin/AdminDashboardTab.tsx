@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AdminService } from '../../services/adminService';
+import { useCurriculum } from '../../context/CurriculumContext';
 import { User, Note, Order, Purchase, Group, Chapter } from '../../types';
 import {
   FileText,
@@ -43,6 +44,21 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
+
+  // Real-time synchronization for curriculum items
+  const { groups: realtimeGroups, chapters: realtimeChapters } = useCurriculum();
+
+  useEffect(() => {
+    if (realtimeGroups && realtimeGroups.length > 0) {
+      setGroups(realtimeGroups);
+    }
+  }, [realtimeGroups]);
+
+  useEffect(() => {
+    if (realtimeChapters && realtimeChapters.length > 0) {
+      setChapters(realtimeChapters);
+    }
+  }, [realtimeChapters]);
 
   useEffect(() => {
     let isMounted = true;

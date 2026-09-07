@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useCurriculum } from '../../context/CurriculumContext';
 import { AdminService } from '../../services/adminService';
 import { Note, Chapter, AcademicSettings, Group } from '../../types';
 import { GoogleDriveViewerModal } from '../../components/GoogleDriveViewerModal';
@@ -73,6 +74,21 @@ export const AdminNotesTab: React.FC<AdminNotesTabProps> = ({
   const [mediumFilter, setMediumFilter] = useState<string>('all');
   const [groups, setGroups] = useState<Group[]>([]);
   const [groupFilter, setGroupFilter] = useState<string>(initialGroupId || 'all');
+
+  // Real-time Firestore synchronization
+  const { chapters: realtimeChapters, groups: realtimeGroups, isLive } = useCurriculum();
+
+  useEffect(() => {
+    if (realtimeChapters && realtimeChapters.length > 0) {
+      setChapters(realtimeChapters);
+    }
+  }, [realtimeChapters]);
+
+  useEffect(() => {
+    if (realtimeGroups && realtimeGroups.length > 0) {
+      setGroups(realtimeGroups);
+    }
+  }, [realtimeGroups]);
 
   // Modals
   const [isChapterModalOpen, setIsChapterModalOpen] = useState(false);

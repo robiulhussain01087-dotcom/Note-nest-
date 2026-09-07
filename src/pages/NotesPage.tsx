@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Note, Chapter, Group } from '../types';
 import { NoteNestDB } from '../services/db';
-import { AdminService } from '../services/adminService';
 import { NoteCard } from '../components/NoteCard';
 import { ChapterContentViewerModal } from '../components/ChapterContentViewerModal';
 import { useAuth } from '../context/AuthContext';
+import { useCurriculum } from '../context/CurriculumContext';
 import {
   Search,
   BookOpen,
@@ -52,7 +52,6 @@ export const NotesPage: React.FC<NotesPageProps> = ({
   const [selectedCourseOrClass, setSelectedCourseOrClass] = useState<string>('all');
   const [selectedSubject, setSelectedSubject] = useState<string>(initialSubject || 'All');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('all');
-  const [dbRefreshKey, setDbRefreshKey] = useState(0);
 
   // Modal viewer state for interactive chapter learning
   const [activeChapterForViewer, setActiveChapterForViewer] = useState<Chapter | null>(null);
@@ -64,36 +63,21 @@ export const NotesPage: React.FC<NotesPageProps> = ({
     }
   }, [initialBrowseMode]);
 
-  // Background fetch to ensure Firestore data is up to date
-  useEffect(() => {
-    let isMounted = true;
-    AdminService.fetchGroups().then(() => {
-      if (isMounted) setDbRefreshKey(k => k + 1);
-    }).catch(() => {});
-    AdminService.fetchChapters().then(() => {
-      if (isMounted) setDbRefreshKey(k => k + 1);
-    }).catch(() => {});
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  // Real-time Firestore synchronizer: SINGLE SOURCE OF TRUTH for Chapters & Groups
+  const { chapters: realtimeChapters, groups: allGroups, isLive, loading: curriculumLoading } = useCurriculum();
 
-  // Fetch data from single source of truth
+  // Derived list of published chapters for students, instantly updated on Firestore snapshot
   const chapters = useMemo(() => {
-    return NoteNestDB.getChapters().filter(c => c.published !== false);
-  }, [dbRefreshKey]);
+    return realtimeChapters.filter(c => c.published !== false);
+  }, [realtimeChapters]);
 
   const notes = useMemo(() => {
     return NoteNestDB.getNotes().filter(n => n.published !== false);
-  }, [dbRefreshKey]);
+  }, []);
 
   const academicSettings = useMemo(() => {
     return NoteNestDB.getAcademicSettings();
-  }, [dbRefreshKey]);
-
-  const allGroups = useMemo(() => {
-    return NoteNestDB.getGroups();
-  }, [dbRefreshKey]);
+  }, []);
 
   // Filter ONLY active groups for students (Requirement 7)
   const activeGroups = useMemo(() => {
@@ -512,6 +496,12 @@ export const NotesPage: React.FC<NotesPageProps> = ({
             <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 uppercase tracking-wider mb-1">
               <Sparkles className="w-4 h-4" />
               <span>Academic Library & Syllabus Units</span>
+              {isLive && (
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Live Sync
+                </span>
+              )}
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
               Curriculum Notes & Chapter Learning

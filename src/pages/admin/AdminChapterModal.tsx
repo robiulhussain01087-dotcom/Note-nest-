@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Chapter, Topic, ContentAccessTier, FlashcardItem, QuizItem, AcademicSettings, Group } from '../../types';
 import { NoteNestDB } from '../../services/db';
+import { useCurriculum } from '../../context/CurriculumContext';
 import {
   X,
   Plus,
@@ -38,10 +39,12 @@ export const AdminChapterModal: React.FC<AdminChapterModalProps> = ({
 }) => {
   const isEditing = !!initialChapter;
 
+  const { groups: realtimeGroups } = useCurriculum();
+
   // Available Groups
   const availableGroups = useMemo(() => {
-    return propGroups || NoteNestDB.getGroups();
-  }, [propGroups]);
+    return propGroups || realtimeGroups || NoteNestDB.getGroups();
+  }, [propGroups, realtimeGroups]);
 
   // Hierarchy fields
   const [educationLevel, setEducationLevel] = useState<string>(initialChapter?.educationLevel || 'School');

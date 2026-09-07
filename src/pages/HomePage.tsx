@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useCurriculum } from '../context/CurriculumContext';
 import { Chapter, Note } from '../types';
 import { NoteNestDB } from '../services/db';
 import { NoteCard } from '../components/NoteCard';
@@ -47,7 +48,8 @@ export const HomePage: React.FC<HomePageProps> = ({
   const featuredNotes = allNotes.slice(0, 4);
 
   const academicSettings = NoteNestDB.getAcademicSettings();
-  const allChapters = NoteNestDB.getChapters();
+  const { chapters: realtimeChapters } = useCurriculum();
+  const allChapters = useMemo(() => realtimeChapters.filter(c => c.published !== false), [realtimeChapters]);
 
   // Filtered chapters for interactive multi-education showcase
   const displayChapters = useMemo(() => {

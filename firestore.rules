@@ -45,39 +45,48 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
+    // Verified purchases & course access
     match /purchases/{purchaseId} {
       allow read: if isAuthenticated() && (resource.data.customerId == request.auth.uid || isAdmin());
-      allow write: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
     
+    // Notes catalog
     match /notes/{noteId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
     
+    // Syllabus Groups: Curriculum hierarchy
+    // Students can read curriculum; only users with users/{uid}.role == "admin" can create, update, delete
     match /groups/{groupId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
+    // Chapters: Syllabus chapters
+    // Students can read curriculum; only users with users/{uid}.role == "admin" can create, update, delete
     match /chapters/{chapterId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
+    // Chapter sub-topics & learning units
     match /topics/{topicId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
+    // Subscription & pricing plans
     match /plans/{planId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
     
+    // Public store & academic settings
     match /settings/{settingId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
   }
 }

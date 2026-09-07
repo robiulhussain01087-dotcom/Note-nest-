@@ -45,6 +45,20 @@ async function withTimeout<T>(promise: Promise<T>, ms = 5000, fallbackVal?: T): 
   return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
 }
 
+function sanitizeForFirestore<T>(obj: T): T {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeForFirestore(item)) as any;
+  }
+  const clean: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      clean[key] = sanitizeForFirestore(value);
+    }
+  }
+  return clean as T;
+}
+
 export class AdminService {
   /**
    * 1. USERS: Fetch all users from Firestore /users with fallback to NoteNestDB
@@ -933,7 +947,7 @@ export class AdminService {
       const db = getFirebaseDB();
       const docId = saved.id || saved.groupId;
       const ref = doc(db, 'groups', docId);
-      await withTimeout(setDoc(ref, saved, { merge: true }), 5000);
+      await withTimeout(setDoc(ref, sanitizeForFirestore(saved), { merge: true }), 5000);
 
       // Synchronize chapter associations in Firestore
       // Update assigned chapters with groupId, and unlink removed chapters without duplicating/deleting content
@@ -1077,7 +1091,7 @@ export class AdminService {
     try {
       const db = getFirebaseDB();
       const ref = doc(db, 'chapters', chapter.id);
-      await withTimeout(setDoc(ref, saved, { merge: true }), 5000);
+      await withTimeout(setDoc(ref, sanitizeForFirestore(saved), { merge: true }), 5000);
       return { success: true, chapter: saved };
     } catch (err: any) {
       logFirestoreError(err, OperationType.WRITE, `chapters/${chapter.id}`);

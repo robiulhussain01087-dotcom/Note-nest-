@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Group, Chapter } from '../types';
 import { NoteNestDB } from '../services/db';
-import { AdminService } from '../services/adminService';
 import { useAuth } from '../context/AuthContext';
+import { useCurriculum } from '../context/CurriculumContext';
 import { ChapterContentViewerModal } from '../components/ChapterContentViewerModal';
 import {
   ArrowLeft,
@@ -34,35 +34,19 @@ export const GroupDetailPage: React.FC<GroupDetailPageProps> = ({
 }) => {
   const { user } = useAuth();
   const [activeChapterForViewer, setActiveChapterForViewer] = useState<Chapter | null>(null);
-  const [dbRefreshKey, setDbRefreshKey] = useState(0);
 
-  // Background sync with Firestore to ensure latest group details and chapters
-  useEffect(() => {
-    let isMounted = true;
-    AdminService.fetchGroups().then(() => {
-      if (isMounted) setDbRefreshKey(k => k + 1);
-    }).catch(() => {});
-    AdminService.fetchChapters().then(() => {
-      if (isMounted) setDbRefreshKey(k => k + 1);
-    }).catch(() => {});
-    return () => {
-      isMounted = false;
-    };
-  }, [groupId]);
+  // Live real-time curriculum sync from Firestore
+  const { groups: allGroups, chapters: allRealtimeChapters, isLive } = useCurriculum();
 
-  // Find the requested group
-  const allGroups = useMemo(() => {
-    return NoteNestDB.getGroups();
-  }, [dbRefreshKey]);
-
+  // Find the requested group reactively from live Firestore snapshot
   const group: Group | undefined = useMemo(() => {
     return allGroups.find(g => g.id === groupId || g.groupId === groupId);
   }, [allGroups, groupId]);
 
-  // Read all published chapters from NoteNestDB (single source of truth)
+  // Read published chapters reactively from live Firestore snapshot
   const allChapters: Chapter[] = useMemo(() => {
-    return NoteNestDB.getChapters().filter(c => c.published !== false);
-  }, [dbRefreshKey]);
+    return allRealtimeChapters.filter(c => c.published !== false);
+  }, [allRealtimeChapters]);
 
   // Resolve chapters belonging to this group in admin-defined order
   const groupChapters: Chapter[] = useMemo(() => {
@@ -172,6 +156,12 @@ export const GroupDetailPage: React.FC<GroupDetailPageProps> = ({
                 <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-200">
                   {groupChapters.length} {groupChapters.length === 1 ? 'Chapter' : 'Chapters'}
                 </span>
+                {isLive && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Live Sync
+                  </span>
+                )}
               </div>
 
               {/* Group Name & Subject */}

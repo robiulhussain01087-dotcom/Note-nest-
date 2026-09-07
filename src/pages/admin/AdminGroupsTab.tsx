@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Group, Chapter, AcademicSettings } from '../../types';
 import { AdminService } from '../../services/adminService';
 import { NoteNestDB } from '../../services/db';
+import { useCurriculum } from '../../context/CurriculumContext';
 import { AdminGroupWizardModal } from './AdminGroupWizardModal';
 import { AdminGroupOpenModal } from './AdminGroupOpenModal';
 import { AdminAddChaptersModal } from './AdminAddChaptersModal';
@@ -73,6 +74,21 @@ export const AdminGroupsTab: React.FC<AdminGroupsTabProps> = ({ onNavigateToChap
   // Create new chapter directly in group modal
   const [chapterModalOpen, setChapterModalOpen] = useState(false);
   const [selectedGroupForNewChapter, setSelectedGroupForNewChapter] = useState<Group | null>(null);
+
+  // Real-time Firestore synchronization
+  const { groups: realtimeGroups, chapters: realtimeChapters, isLive } = useCurriculum();
+
+  useEffect(() => {
+    if (realtimeGroups && realtimeGroups.length > 0) {
+      setGroups(realtimeGroups);
+    }
+  }, [realtimeGroups]);
+
+  useEffect(() => {
+    if (realtimeChapters && realtimeChapters.length > 0) {
+      setChapters(realtimeChapters);
+    }
+  }, [realtimeChapters]);
 
   const loadAll = async () => {
     try {
