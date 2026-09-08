@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { AdminService } from '../../services/adminService';
 import { Order, PaymentStatus } from '../../types';
+import { subscribeToAdminOrders } from '../../services/ordersRealtime';
+import { NoteNestDB } from '../../services/db';
 import {
   Check,
   X,
@@ -22,8 +24,9 @@ import {
 } from 'lucide-react';
 
 export const AdminOrdersTab: React.FC = () => {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<Order[]>(() => NoteNestDB.getOrders());
   const [loading, setLoading] = useState(true);
+  const [realtimeError, setRealtimeError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | PaymentStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,26 +35,47 @@ export const AdminOrdersTab: React.FC = () => {
   const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
   const [rejectPromptId, setRejectPromptId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
 
-  const loadOrders = async () => {
+  // Real-time listener continuously synchronizes Firestore /orders via onSnapshot()
+  useEffect(() => {
+    let isMounted = true;
+
+    const unsubscribe = subscribeToAdminOrders(
+      (newOrders) => {
+        if (isMounted) {
+          setOrders(newOrders);
+          setLoading(false);
+          setRealtimeError(null);
+        }
+      },
+      (err) => {
+        if (isMounted) {
+          console.error('[AdminOrdersTab] Real-time listener error:', err);
+          setRealtimeError(err?.message || 'Real-time order synchronization error.');
+          setLoading(false);
+        }
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
     try {
       const fetched = await AdminService.fetchOrders();
       setOrders(fetched);
-    } catch (err) {
-      console.error('[AdminOrdersTab] Failed to load orders:', err);
+      setRealtimeError(null);
+    } catch (err: any) {
+      console.error('[AdminOrdersTab] Manual sync error:', err);
+      setRealtimeError(err?.message || 'Manual order sync failed.');
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    loadOrders();
-  }, []);
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadOrders();
   };
 
   const handleCopy = (text: string, id: string) => {
@@ -76,26 +100,38 @@ export const AdminOrdersTab: React.FC = () => {
   });
 
   const handleApprove = async (orderId: string) => {
-    await AdminService.verifyOrder(orderId, 'paid', 'Administrator Verification');
-    await loadOrders();
-    if (selectedOrderDetails?.id === orderId) {
-      setSelectedOrderDetails(null);
+    setActionInProgress(orderId);
+    try {
+      await AdminService.verifyOrder(orderId, 'paid', 'Administrator Verification');
+      if (selectedOrderDetails?.id === orderId) {
+        setSelectedOrderDetails(null);
+      }
+    } catch (err: any) {
+      console.error('[AdminOrdersTab] Approve error:', err);
+    } finally {
+      setActionInProgress(null);
     }
   };
 
   const handleConfirmReject = async () => {
     if (!rejectPromptId) return;
-    await AdminService.verifyOrder(
-      rejectPromptId,
-      'rejected',
-      'Administrator Verification',
-      rejectReason || 'Amount mismatch or invalid 12-digit UTR.'
-    );
-    setRejectPromptId(null);
-    setRejectReason('');
-    await loadOrders();
-    if (selectedOrderDetails?.id === rejectPromptId) {
-      setSelectedOrderDetails(null);
+    setActionInProgress(rejectPromptId);
+    try {
+      await AdminService.verifyOrder(
+        rejectPromptId,
+        'rejected',
+        'Administrator Verification',
+        rejectReason || 'Amount mismatch or invalid 12-digit UTR.'
+      );
+      setRejectPromptId(null);
+      setRejectReason('');
+      if (selectedOrderDetails?.id === rejectPromptId) {
+        setSelectedOrderDetails(null);
+      }
+    } catch (err: any) {
+      console.error('[AdminOrdersTab] Reject error:', err);
+    } finally {
+      setActionInProgress(null);
     }
   };
 
@@ -114,6 +150,11 @@ export const AdminOrdersTab: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-950/60 border border-emerald-500/30 rounded-lg text-[11px] font-bold text-emerald-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Live Firestore Sync</span>
+          </div>
+
           <button
             onClick={handleRefresh}
             disabled={refreshing}
@@ -124,6 +165,16 @@ export const AdminOrdersTab: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {realtimeError && (
+        <div className="p-4 bg-rose-950/50 border border-rose-800/80 rounded-xl text-xs text-rose-200 flex items-start gap-2.5">
+          <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold">Real-time Synchronization Notice: </span>
+            <span>{realtimeError}</span>
+          </div>
+        </div>
+      )}
 
       {/* Filter Chips & Search Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">

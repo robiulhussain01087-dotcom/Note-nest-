@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AdminService } from '../../services/adminService';
 import { useCurriculum } from '../../context/CurriculumContext';
+import { subscribeToAdminOrders, subscribeToAdminPurchases } from '../../services/ordersRealtime';
 import { User, Note, Order, Purchase, Group, Chapter } from '../../types';
 import {
   FileText,
@@ -60,24 +61,42 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
     }
   }, [realtimeChapters]);
 
+  // Real-time synchronization for orders
+  useEffect(() => {
+    let isMounted = true;
+    const unsubOrders = subscribeToAdminOrders((newOrders) => {
+      if (isMounted) {
+        setOrders(newOrders);
+      }
+    });
+
+    const unsubPurchases = subscribeToAdminPurchases((newPurchases) => {
+      if (isMounted) {
+        setPurchases(newPurchases);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubOrders();
+      unsubPurchases();
+    };
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
     async function loadDashboardData() {
       setLoading(true);
       try {
-        const [fetchedUsers, fetchedGroups, fetchedChapters, fetchedOrders, fetchedPurchases] = await Promise.all([
+        const [fetchedUsers, fetchedGroups, fetchedChapters] = await Promise.all([
           AdminService.fetchUsers(),
           AdminService.fetchGroups(),
-          AdminService.fetchChapters(),
-          AdminService.fetchOrders(),
-          AdminService.fetchPurchases()
+          AdminService.fetchChapters()
         ]);
         if (isMounted) {
           setUsers(fetchedUsers);
           setGroups(fetchedGroups);
           setChapters(fetchedChapters);
-          setOrders(fetchedOrders);
-          setPurchases(fetchedPurchases);
         }
       } catch (err) {
         console.warn('[AdminDashboard] Error loading data:', err);
@@ -114,18 +133,11 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
 
   const handleQuickApprove = async (orderId: string) => {
-    const updated = await AdminService.verifyOrder(orderId, 'paid', 'Admin Dashboard Quick Verify');
-    if (updated) {
-      setOrders(await AdminService.fetchOrders());
-      setPurchases(await AdminService.fetchPurchases());
-    }
+    await AdminService.verifyOrder(orderId, 'paid', 'Admin Dashboard Quick Verify');
   };
 
   const handleQuickReject = async (orderId: string) => {
-    const updated = await AdminService.verifyOrder(orderId, 'rejected', 'Admin Dashboard Quick Verify', 'Amount mismatch or unconfirmed UTR');
-    if (updated) {
-      setOrders(await AdminService.fetchOrders());
-    }
+    await AdminService.verifyOrder(orderId, 'rejected', 'Admin Dashboard Quick Verify', 'Amount mismatch or unconfirmed UTR');
   };
 
   const statCards = [

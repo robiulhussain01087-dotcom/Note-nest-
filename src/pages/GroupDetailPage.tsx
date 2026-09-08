@@ -3,6 +3,7 @@ import { Group, Chapter } from '../types';
 import { NoteNestDB } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { useCurriculum } from '../context/CurriculumContext';
+import { useCustomerPurchases } from '../services/ordersRealtime';
 import { ChapterContentViewerModal } from '../components/ChapterContentViewerModal';
 import {
   ArrowLeft,
@@ -34,6 +35,7 @@ export const GroupDetailPage: React.FC<GroupDetailPageProps> = ({
 }) => {
   const { user } = useAuth();
   const [activeChapterForViewer, setActiveChapterForViewer] = useState<Chapter | null>(null);
+  const { purchases } = useCustomerPurchases(user?.uid);
 
   // Live real-time curriculum sync from Firestore
   const { groups: allGroups, chapters: allRealtimeChapters, isLive } = useCurriculum();
@@ -223,7 +225,12 @@ export const GroupDetailPage: React.FC<GroupDetailPageProps> = ({
                 ? chapter.originalPrice
                 : (isPremium ? 50 : 20);
               const hasDiscount = originalPrice > offerPrice;
-              const isPurchased = user?.uid ? NoteNestDB.hasCustomerPurchasedChapter(user.uid, chapter.id) : false;
+              const isPurchased = Boolean(
+                user?.uid && (
+                  purchases.some(p => (p.chapterId === chapter.id || p.noteId === chapter.id) && p.accessStatus !== 'revoked') ||
+                  NoteNestDB.hasCustomerPurchasedChapter(user.uid, chapter.id)
+                )
+              );
 
               return (
                 <div

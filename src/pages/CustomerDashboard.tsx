@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useCurriculum } from '../context/CurriculumContext';
+import { useCustomerPurchases, useCustomerOrders } from '../services/ordersRealtime';
 import { NoteNestDB } from '../services/db';
 import { Note, Order, Purchase, Chapter } from '../types';
 import { GoogleDriveViewerModal } from '../components/GoogleDriveViewerModal';
@@ -58,8 +60,9 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     );
   }
 
-  const allPurchases = NoteNestDB.getCustomerPurchases(user.uid);
-  const allOrders = NoteNestDB.getOrders().filter(o => o.customerId === user.uid);
+  const { getChapterById } = useCurriculum();
+  const { purchases: allPurchases, loading: purchasesLoading, error: purchasesError } = useCustomerPurchases(user.uid);
+  const { orders: allOrders, loading: ordersLoading, error: ordersError } = useCustomerOrders(user.uid);
 
   const handleDownloadPdf = (note: Note) => {
     if (note.pdfUrl) {
@@ -122,43 +125,60 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       </div>
 
       {/* Tabs Navigation */}
-      <div className="flex border-b border-slate-200 gap-2 sm:gap-6 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('purchases')}
-          className={`pb-3 px-2 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors ${
-            activeTab === 'purchases'
-              ? 'border-blue-900 text-blue-900'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <BookOpen className="w-4 h-4" />
-          <span>My Purchased Notes ({allPurchases.length})</span>
-        </button>
+      <div className="flex items-center justify-between border-b border-slate-200">
+        <div className="flex gap-2 sm:gap-6 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('purchases')}
+            className={`pb-3 px-2 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors ${
+              activeTab === 'purchases'
+                ? 'border-blue-900 text-blue-900'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>My Purchased Notes ({allPurchases.length})</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('orders')}
-          className={`pb-3 px-2 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors ${
-            activeTab === 'orders'
-              ? 'border-blue-900 text-blue-900'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <ShoppingBag className="w-4 h-4" />
-          <span>Order History ({allOrders.length})</span>
-        </button>
+          <button
+            onClick={() => setActiveTab('orders')}
+            className={`pb-3 px-2 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors ${
+              activeTab === 'orders'
+                ? 'border-blue-900 text-blue-900'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <ShoppingBag className="w-4 h-4" />
+            <span>Order History ({allOrders.length})</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('profile')}
-          className={`pb-3 px-2 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors ${
-            activeTab === 'profile'
-              ? 'border-blue-900 text-blue-900'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <UserIcon className="w-4 h-4" />
-          <span>Profile Details</span>
-        </button>
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`pb-3 px-2 text-sm font-bold flex items-center gap-2 border-b-2 whitespace-nowrap transition-colors ${
+              activeTab === 'profile'
+                ? 'border-blue-900 text-blue-900'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <UserIcon className="w-4 h-4" />
+            <span>Profile Details</span>
+          </button>
+        </div>
+
+        <div className="hidden sm:flex items-center gap-1.5 pb-2 text-[11px] font-semibold text-emerald-700">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>Live Real-time Sync</span>
+        </div>
       </div>
+
+      {(purchasesError || ordersError) && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 flex items-start gap-2.5">
+          <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold">Real-time Connection Notice: </span>
+            <span>{purchasesError?.message || ordersError?.message || 'Database listener disconnected. Please check internet connection.'}</span>
+          </div>
+        </div>
+      )}
 
       {/* Tab 1: Purchased Notes (Accessible only when approved) */}
       {activeTab === 'purchases' && (
@@ -191,7 +211,28 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           {allPurchases.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {allPurchases.map((purchase) => {
-                const chapter = purchase.chapterId ? NoteNestDB.getChapterById(purchase.chapterId) : null;
+                const chapter: Chapter | null = (purchase.chapterId ? getChapterById(purchase.chapterId) : null)
+                  || (purchase.chapterId ? NoteNestDB.getChapterById(purchase.chapterId) : null)
+                  || (purchase.chapterId ? {
+                      id: purchase.chapterId,
+                      groupId: 'curriculum-general',
+                      title: purchase.chapterTitle || purchase.noteTitle,
+                      description: 'Curriculum interactive study unit.',
+                      subject: purchase.subject || 'Curriculum Subject',
+                      classOrCourse: purchase.course || 'B.Com',
+                      semester: purchase.semester || 'Academic Session',
+                      educationLevel: 'college',
+                      medium: 'English',
+                      accessType: (purchase.accessType || 'normal') as 'normal' | 'premium',
+                      price: purchase.purchasedPrice || 0,
+                      published: true,
+                      chapterNumber: 1,
+                      order: 1,
+                      topicsCount: 1,
+                      createdAt: purchase.purchasedAt || new Date().toISOString(),
+                      updatedAt: purchase.purchasedAt || new Date().toISOString()
+                    } : null);
+
                 const note = purchase.noteId ? NoteNestDB.getNoteById(purchase.noteId) : null;
 
                 if (chapter) {

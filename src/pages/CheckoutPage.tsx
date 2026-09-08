@@ -3,6 +3,7 @@ import { Note, Order, Chapter } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { NoteNestDB } from '../services/db';
+import { submitCustomerOrder } from '../services/ordersRealtime';
 import confetti from 'canvas-confetti';
 import {
   ArrowLeft,
@@ -116,11 +117,14 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     }
   };
 
-  const handleSubmitPayment = (e: React.FormEvent) => {
+  const handleSubmitPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    if (!order) return;
+    if (!user) {
+      setErrorMsg('Please log in to submit payment proof.');
+      return;
+    }
 
     if (!utrNumber || utrNumber.trim().length < 6) {
       setErrorMsg('Please enter a valid UPI Reference / UTR Number (minimum 6-12 digits).');
@@ -129,23 +133,33 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
     setSubmitting(true);
     try {
-      const updated = NoteNestDB.submitPaymentProof(
-        order.id,
-        utrNumber.trim(),
-        screenshotPreview || undefined
-      );
+      const canonicalOrderId = order?.id || `ord-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const savedOrder = await submitCustomerOrder({
+        orderId: canonicalOrderId,
+        customerId: user.uid,
+        customerName: user.name || 'Student',
+        customerEmail: user.email || '',
+        chapterId: targetChapter?.id,
+        chapterTitle: targetChapter?.title,
+        accessType: targetChapter?.accessType,
+        noteId: note?.id || targetChapter?.id || 'chapter-curriculum',
+        noteTitle: itemTitle,
+        amount: itemPrice,
+        paymentMethod: 'manual_upi',
+        utr: utrNumber.trim(),
+        screenshotUrl: screenshotPreview || undefined
+      });
 
-      if (updated) {
-        setOrder(updated);
-        setSubmittedSuccess(true);
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 }
-        });
-      }
-    } catch {
-      setErrorMsg('Failed to submit payment proof. Please try again.');
+      setOrder(savedOrder);
+      setSubmittedSuccess(true);
+      confetti({
+        particleCount: 80,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+    } catch (err: any) {
+      console.error('[CheckoutPage] Error submitting payment proof to Firestore:', err);
+      setErrorMsg(err?.message || 'Failed to submit payment proof to database. Please check your connection and try again.');
     } finally {
       setSubmitting(false);
     }

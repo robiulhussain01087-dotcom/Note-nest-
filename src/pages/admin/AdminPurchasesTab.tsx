@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { AdminService } from '../../services/adminService';
 import { Purchase } from '../../types';
+import { subscribeToAdminPurchases } from '../../services/ordersRealtime';
+import { NoteNestDB } from '../../services/db';
 import {
   PackageCheck,
   Search,
@@ -16,32 +18,53 @@ import {
 } from 'lucide-react';
 
 export const AdminPurchasesTab: React.FC = () => {
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>(() => NoteNestDB.getPurchases());
   const [loading, setLoading] = useState(true);
+  const [realtimeError, setRealtimeError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [semesterFilter, setSemesterFilter] = useState('all');
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
 
-  const loadPurchases = async () => {
+  // Real-time listener continuously synchronizes Firestore /purchases via onSnapshot()
+  useEffect(() => {
+    let isMounted = true;
+
+    const unsubscribe = subscribeToAdminPurchases(
+      (newPurchases) => {
+        if (isMounted) {
+          setPurchases(newPurchases);
+          setLoading(false);
+          setRealtimeError(null);
+        }
+      },
+      (err) => {
+        if (isMounted) {
+          console.error('[AdminPurchasesTab] Real-time listener error:', err);
+          setRealtimeError(err?.message || 'Real-time purchase synchronization error.');
+          setLoading(false);
+        }
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
     try {
       const fetched = await AdminService.fetchPurchases();
       setPurchases(fetched);
-    } catch (err) {
-      console.error('[AdminPurchasesTab] Error loading purchases:', err);
+      setRealtimeError(null);
+    } catch (err: any) {
+      console.error('[AdminPurchasesTab] Manual sync error:', err);
+      setRealtimeError(err?.message || 'Manual purchase sync failed.');
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    loadPurchases();
-  }, []);
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadPurchases();
   };
 
   const filteredPurchases = purchases.filter((p) => {
@@ -75,6 +98,11 @@ export const AdminPurchasesTab: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-950/60 border border-emerald-500/30 rounded-lg text-[11px] font-bold text-emerald-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Live Firestore Sync</span>
+          </div>
+
           <button
             onClick={handleRefresh}
             disabled={refreshing}
@@ -85,6 +113,16 @@ export const AdminPurchasesTab: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {realtimeError && (
+        <div className="p-4 bg-rose-950/50 border border-rose-800/80 rounded-xl text-xs text-rose-200 flex items-start gap-2.5">
+          <ShieldCheck className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold">Real-time Purchase Synchronization Notice: </span>
+            <span>{realtimeError}</span>
+          </div>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

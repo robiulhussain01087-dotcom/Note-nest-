@@ -16,6 +16,7 @@ import { NoteNestDB } from './db';
 import { normalizeChapter } from './curriculumRealtime';
 import { User, Note, Order, Purchase, Payment, PaymentSettings, WebsiteSettings, Chapter, Topic, AcademicSettings, Group } from '../types';
 import { getActiveQrCodePath } from '../utils/assetService';
+import { normalizeOrder, normalizePurchase, verifyOrderInFirestore, submitCustomerOrder } from './ordersRealtime';
 
 enum OperationType {
   CREATE = 'create',
@@ -266,30 +267,22 @@ export class AdminService {
   }
 
   /**
-   * 3. ORDERS: Fetch orders from Firestore /orders or fallback to NoteNestDB
+   * 3. ORDERS: Fetch all orders from Firestore /orders or fallback to NoteNestDB
    */
   static async fetchOrders(): Promise<Order[]> {
     try {
       const db = getFirebaseDB();
       const ordersCol = collection(db, 'orders');
-      const snap = await withTimeout(getDocs(ordersCol), 4000);
+      const snap = await withTimeout(getDocs(ordersCol), 5000);
 
       if (!snap.empty) {
         const firestoreOrders: Order[] = [];
         snap.forEach((d) => {
-          firestoreOrders.push({
-            id: d.id,
-            ...(d.data() as Omit<Order, 'id'>)
-          });
+          firestoreOrders.push(normalizeOrder(d.data(), d.id));
         });
-        // Merge with local orders
-        const localOrders = NoteNestDB.getOrders();
-        const mergedMap = new Map<string, Order>();
-        localOrders.forEach(o => mergedMap.set(o.id, o));
-        firestoreOrders.forEach(o => mergedMap.set(o.id, o));
-        const result = Array.from(mergedMap.values());
-        NoteNestDB.saveOrders(result);
-        return result;
+        firestoreOrders.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        NoteNestDB.saveOrders(firestoreOrders);
+        return firestoreOrders;
       }
     } catch (err) {
       logFirestoreError(err, OperationType.LIST, 'orders');
@@ -299,7 +292,7 @@ export class AdminService {
   }
 
   /**
-   * Verify order (approve or reject) and record purchase
+   * Verify order (approve or reject) and record purchase in Firestore
    */
   static async verifyOrder(
     orderId: string,
@@ -307,75 +300,11 @@ export class AdminService {
     verifiedBy: string,
     adminNote?: string
   ): Promise<Order | null> {
-    // 1. Update in local DB
-    const updatedOrder = NoteNestDB.verifyPayment(orderId, status, verifiedBy, adminNote);
-
-    // 2. Sync order update to Firestore /orders/{orderId}
-    try {
-      const db = getFirebaseDB();
-      const orderRef = doc(db, 'orders', orderId);
-      await withTimeout(
-        updateDoc(orderRef, {
-          paymentStatus: status,
-          verifiedAt: new Date().toISOString(),
-          verifiedBy,
-          adminNote: adminNote || ''
-        }),
-        4000
-      );
-
-      // 3. If approved / paid, create purchase record in Firestore
-      if (status === 'paid' && updatedOrder) {
-        if (updatedOrder.chapterId) {
-          const purchaseId = `pur-${updatedOrder.customerId}-${updatedOrder.chapterId}`;
-          const chapter = NoteNestDB.getChapterById(updatedOrder.chapterId);
-          const purchaseRef = doc(db, 'purchases', purchaseId);
-          await withTimeout(
-            setDoc(purchaseRef, {
-              id: purchaseId,
-              customerId: updatedOrder.customerId,
-              chapterId: updatedOrder.chapterId,
-              chapterTitle: updatedOrder.chapterTitle || chapter?.title || updatedOrder.noteTitle,
-              accessType: updatedOrder.accessType || chapter?.accessType || 'normal',
-              noteId: updatedOrder.chapterId,
-              orderId: updatedOrder.id,
-              noteTitle: updatedOrder.noteTitle,
-              purchasedPrice: updatedOrder.amount,
-              purchasedAt: new Date().toISOString(),
-              accessStatus: 'active',
-              course: chapter?.classOrCourse || 'Curriculum',
-              semester: chapter?.semester || 'Academic Session',
-              subject: chapter?.subject || 'All Subjects'
-            }),
-            4000
-          );
-        } else if (updatedOrder.noteId) {
-          const purchaseId = `pur-${updatedOrder.customerId}-${updatedOrder.noteId}`;
-          const note = NoteNestDB.getNoteById(updatedOrder.noteId);
-          const purchaseRef = doc(db, 'purchases', purchaseId);
-          await withTimeout(
-            setDoc(purchaseRef, {
-              id: purchaseId,
-              customerId: updatedOrder.customerId,
-              noteId: updatedOrder.noteId,
-              orderId: updatedOrder.id,
-              noteTitle: updatedOrder.noteTitle,
-              purchasedPrice: updatedOrder.amount,
-              purchasedAt: new Date().toISOString(),
-              accessStatus: 'active',
-              course: note?.course || 'Curriculum',
-              semester: note?.semester || 'Academic Session',
-              subject: note?.subject || 'All Subjects'
-            }),
-            4000
-          );
-        }
-      }
-    } catch (err) {
-      logFirestoreError(err, OperationType.UPDATE, `orders/${orderId}`);
+    const res = await verifyOrderInFirestore(orderId, status, verifiedBy, adminNote);
+    if (!res.success) {
+      console.error('[AdminService.verifyOrder] Error:', res.error);
     }
-
-    return updatedOrder;
+    return res.order || null;
   }
 
   /**
@@ -385,24 +314,16 @@ export class AdminService {
     try {
       const db = getFirebaseDB();
       const purchasesCol = collection(db, 'purchases');
-      const snap = await withTimeout(getDocs(purchasesCol), 4000);
+      const snap = await withTimeout(getDocs(purchasesCol), 5000);
 
       if (!snap.empty) {
         const firestorePurchases: Purchase[] = [];
         snap.forEach((d) => {
-          firestorePurchases.push({
-            id: d.id,
-            ...(d.data() as Omit<Purchase, 'id'>)
-          });
+          firestorePurchases.push(normalizePurchase(d.data(), d.id));
         });
-        // Merge with local purchases
-        const local = NoteNestDB.getPurchases();
-        const map = new Map<string, Purchase>();
-        local.forEach(p => map.set(p.id, p));
-        firestorePurchases.forEach(p => map.set(p.id, p));
-        const res = Array.from(map.values());
-        NoteNestDB.savePurchases(res);
-        return res;
+        firestorePurchases.sort((a, b) => new Date(b.purchasedAt || 0).getTime() - new Date(a.purchasedAt || 0).getTime());
+        NoteNestDB.savePurchases(firestorePurchases);
+        return firestorePurchases;
       }
     } catch (err) {
       logFirestoreError(err, OperationType.LIST, 'purchases');
@@ -497,7 +418,7 @@ export class AdminService {
   }
 
   /**
-   * Submit a payment verification request to Firestore /payments/{paymentId}
+   * Submit a payment verification request to Firestore /orders and /payments
    */
   static async submitPaymentRequest(paymentData: {
     customerId: string;
@@ -513,77 +434,29 @@ export class AdminService {
     paymentDate?: string;
     screenshotUrl?: string;
   }): Promise<{ success: boolean; paymentId: string; error?: string }> {
-    const paymentId = `PAY-${Date.now().toString().slice(-6)}`;
-    const now = new Date().toISOString();
-
-    const paymentRecord: Payment = {
-      id: paymentId,
-      customerId: paymentData.customerId,
-      customerName: paymentData.customerName,
-      customerEmail: paymentData.customerEmail,
-      chapterId: paymentData.chapterId,
-      chapterTitle: paymentData.chapterTitle,
-      accessType: paymentData.accessType,
-      noteId: paymentData.noteId || paymentData.chapterId || 'chapter-general',
-      noteTitle: paymentData.noteTitle,
-      amount: paymentData.amount,
-      utr: paymentData.utr,
-      paymentDate: paymentData.paymentDate || now,
-      screenshotUrl: paymentData.screenshotUrl || '',
-      status: 'pending',
-      createdAt: now
-    };
-
-    // Save in NoteNestDB locally for instant responsive access
-    NoteNestDB.createOrder({
-      customerId: paymentData.customerId,
-      customerName: paymentData.customerName,
-      customerEmail: paymentData.customerEmail,
-      chapterId: paymentData.chapterId,
-      chapterTitle: paymentData.chapterTitle,
-      accessType: paymentData.accessType,
-      noteId: paymentRecord.noteId || 'chapter-general',
-      noteTitle: paymentData.noteTitle,
-      amount: paymentData.amount,
-      paymentMethod: 'manual_upi'
-    });
-    NoteNestDB.submitPaymentProof(paymentId, paymentData.utr, paymentData.screenshotUrl);
-
-    // Save to Firestore /payments/{paymentId} and /orders/{paymentId}
     try {
-      const db = getFirebaseDB();
-      const payRef = doc(db, 'payments', paymentId);
-      await withTimeout(setDoc(payRef, paymentRecord), 5000);
-
-      const orderRef = doc(db, 'orders', paymentId);
-      await withTimeout(setDoc(orderRef, {
-        id: paymentId,
+      const order = await submitCustomerOrder({
         customerId: paymentData.customerId,
         customerName: paymentData.customerName,
         customerEmail: paymentData.customerEmail,
-        chapterId: paymentData.chapterId || null,
-        chapterTitle: paymentData.chapterTitle || null,
-        accessType: paymentData.accessType || null,
-        noteId: paymentRecord.noteId,
+        chapterId: paymentData.chapterId,
+        chapterTitle: paymentData.chapterTitle,
+        accessType: paymentData.accessType,
+        noteId: paymentData.noteId,
         noteTitle: paymentData.noteTitle,
         amount: paymentData.amount,
-        paymentMethod: 'manual_upi',
-        paymentStatus: 'pending',
         utr: paymentData.utr,
-        screenshotUrl: paymentData.screenshotUrl || '',
-        createdAt: now
-      }), 5000);
-
-      return { success: true, paymentId };
+        screenshotUrl: paymentData.screenshotUrl
+      });
+      return { success: true, paymentId: order.id };
     } catch (err: any) {
-      logFirestoreError(err, OperationType.CREATE, `payments/${paymentId}`);
-      // Return success because local record was successfully saved
-      return { success: true, paymentId };
+      console.error('[AdminService.submitPaymentRequest] Error:', err);
+      return { success: false, paymentId: '', error: err?.message || 'Failed to submit payment.' };
     }
   }
 
   /**
-   * Verify a payment verification request (Approve / Reject)
+   * Verify a payment verification request (Approve / Reject) in Firestore
    */
   static async verifyPaymentRequest(
     paymentId: string,
@@ -591,95 +464,9 @@ export class AdminService {
     verifiedBy: string,
     adminNote?: string
   ): Promise<{ success: boolean; error?: string }> {
-    const verifiedAt = new Date().toISOString();
     const orderStatus = status === 'successful' ? 'paid' : 'rejected';
-
-    // 1. Update local DB
-    NoteNestDB.verifyPayment(paymentId, orderStatus, verifiedBy, adminNote);
-
-    // 2. Update Firestore /payments/{paymentId} and /orders/{paymentId}
-    try {
-      const db = getFirebaseDB();
-      const payRef = doc(db, 'payments', paymentId);
-      await withTimeout(
-        updateDoc(payRef, {
-          status,
-          verifiedAt,
-          verifiedBy,
-          adminNote: adminNote || ''
-        }),
-        4000
-      );
-
-      const orderRef = doc(db, 'orders', paymentId);
-      await withTimeout(
-        updateDoc(orderRef, {
-          paymentStatus: orderStatus,
-          verifiedAt,
-          verifiedBy,
-          adminNote: adminNote || ''
-        }),
-        4000
-      );
-
-      // 3. If approved / successful, ensure customer purchase is created in Firestore /purchases/{purchaseId}
-      if (status === 'successful') {
-        const payments = await this.fetchPayments();
-        const pay = payments.find(p => p.id === paymentId);
-        if (pay) {
-          const targetChapterId = pay.chapterId || (NoteNestDB.getChapterById(pay.noteId || '') ? pay.noteId : undefined);
-          if (targetChapterId) {
-            const purchaseId = `pur-${pay.customerId}-${targetChapterId}`;
-            const chapter = NoteNestDB.getChapterById(targetChapterId);
-            const purchaseRef = doc(db, 'purchases', purchaseId);
-            await withTimeout(
-              setDoc(purchaseRef, {
-                id: purchaseId,
-                customerId: pay.customerId,
-                chapterId: targetChapterId,
-                chapterTitle: pay.chapterTitle || chapter?.title || pay.noteTitle,
-                accessType: pay.accessType || chapter?.accessType || 'normal',
-                noteId: targetChapterId,
-                orderId: pay.id,
-                noteTitle: pay.noteTitle,
-                purchasedPrice: pay.amount,
-                purchasedAt: verifiedAt,
-                accessStatus: 'active',
-                course: chapter?.classOrCourse || 'Curriculum',
-                semester: chapter?.semester || 'Academic Session',
-                subject: chapter?.subject || 'All Subjects'
-              }),
-              4000
-            );
-          } else {
-            const purchaseId = `pur-${pay.customerId}-${pay.noteId}`;
-            const note = NoteNestDB.getNoteById(pay.noteId || '');
-            const purchaseRef = doc(db, 'purchases', purchaseId);
-            await withTimeout(
-              setDoc(purchaseRef, {
-                id: purchaseId,
-                customerId: pay.customerId,
-                noteId: pay.noteId,
-                orderId: pay.id,
-                noteTitle: pay.noteTitle,
-                purchasedPrice: pay.amount,
-                purchasedAt: verifiedAt,
-                accessStatus: 'active',
-                course: note?.course || 'Multi-Education',
-                semester: note?.semester || 'All',
-                subject: note?.subject || 'All Subjects'
-              }),
-              4000
-            );
-          }
-        }
-      }
-
-      return { success: true };
-    } catch (err: any) {
-      logFirestoreError(err, OperationType.UPDATE, `payments/${paymentId}`);
-      return { success: true };
-    }
+    const res = await verifyOrderInFirestore(paymentId, orderStatus, verifiedBy, adminNote);
+    return { success: res.success, error: res.error };
   }
 
   /**

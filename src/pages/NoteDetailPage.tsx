@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Note } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useCustomerPurchases } from '../services/ordersRealtime';
 import { NoteNestDB } from '../services/db';
 import { GoogleDriveViewerModal } from '../components/GoogleDriveViewerModal';
 import {
@@ -46,7 +47,13 @@ export const NoteDetailPage: React.FC<NoteDetailPageProps> = ({
     );
   }
 
-  const isPurchased = user ? NoteNestDB.hasCustomerPurchasedNote(user.uid, note.id) : false;
+  const { purchases } = useCustomerPurchases(user?.uid);
+  const isPurchased = Boolean(
+    user && (
+      purchases.some(p => (p.noteId === note.id || p.chapterId === note.id) && p.accessStatus !== 'revoked') ||
+      NoteNestDB.hasCustomerPurchasedNote(user.uid, note.id)
+    )
+  );
 
   const hasOriginalPrice = note.originalPrice && note.originalPrice > note.offerPrice;
   const discountPercent = hasOriginalPrice
