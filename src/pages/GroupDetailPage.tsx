@@ -71,17 +71,12 @@ export const GroupDetailPage: React.FC<GroupDetailPageProps> = ({
       }
     }
 
-    // 2. Fallback for legacy data where chapter.groupId was set but chapterIds wasn't populated
-    if (result.length === 0) {
-      for (const chap of allChapters) {
-        if (chap.groupId === group.id || chap.groupId === group.groupId) {
-          if (!seen.has(chap.id)) {
-            result.push(chap);
-            seen.add(chap.id);
-          }
-        }
+    // 2. Also include any chapters assigned to this group (by groupId) that may not yet be in chapterIds
+    for (const chap of allChapters) {
+      if ((chap.groupId === group.id || chap.groupId === group.groupId) && !seen.has(chap.id)) {
+        result.push(chap);
+        seen.add(chap.id);
       }
-      result.sort((a, b) => (Number(a.chapterNumber) || 0) - (Number(b.chapterNumber) || 0));
     }
 
     return result;

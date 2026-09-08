@@ -12,7 +12,13 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() && 
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'ADMIN' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'administrator' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Administrator'
+        );
     }
 
     match /users/{userId} {
@@ -22,8 +28,11 @@ service cloud.firestore {
       // New registration can set role to 'customer' for their own uid
       allow create: if (isOwner(userId) && request.resource.data.role == 'customer') || isAdmin();
       
-      // User cannot elevate their own role to 'admin'. Role modifications restricted to admins.
-      allow update: if (isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin();
+      // User cannot elevate their own role to 'admin'. Normalizing admin casing or admin role edits allowed.
+      allow update: if (isOwner(userId) && (
+        request.resource.data.role == resource.data.role ||
+        (resource.data.role in ['admin', 'Admin', 'ADMIN', 'administrator', 'Administrator'] && request.resource.data.role == 'admin')
+      )) || isAdmin();
       
       // Only Admin can delete accounts
       allow delete: if isAdmin();

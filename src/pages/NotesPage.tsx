@@ -178,16 +178,16 @@ export const NotesPage: React.FC<NotesPageProps> = ({
   // Filtered Chapters for All Chapters Tab
   const filteredChapters = useMemo(() => {
     return chapters.filter(chap => {
-      // Level filter
-      if (selectedEducationLevel !== 'all' && chap.educationLevel !== selectedEducationLevel) {
+      // Level filter (case-insensitive)
+      if (selectedEducationLevel !== 'all' && (chap.educationLevel || '').toLowerCase() !== selectedEducationLevel.toLowerCase()) {
         return false;
       }
-      // Medium filter
-      if (selectedMedium !== 'all' && chap.medium.toLowerCase() !== selectedMedium.toLowerCase()) {
+      // Medium filter (case-insensitive)
+      if (selectedMedium !== 'all' && (chap.medium || '').toLowerCase() !== selectedMedium.toLowerCase()) {
         return false;
       }
-      // Class/Course filter
-      if (selectedCourseOrClass !== 'all' && chap.classOrCourse !== selectedCourseOrClass) {
+      // Class/Course filter (case-insensitive)
+      if (selectedCourseOrClass !== 'all' && (chap.classOrCourse || chap.classLevel || '').toLowerCase() !== selectedCourseOrClass.toLowerCase()) {
         return false;
       }
       // Subject filter

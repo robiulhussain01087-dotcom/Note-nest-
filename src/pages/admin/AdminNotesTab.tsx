@@ -79,13 +79,13 @@ export const AdminNotesTab: React.FC<AdminNotesTabProps> = ({
   const { chapters: realtimeChapters, groups: realtimeGroups, isLive } = useCurriculum();
 
   useEffect(() => {
-    if (realtimeChapters && realtimeChapters.length > 0) {
+    if (realtimeChapters) {
       setChapters(realtimeChapters);
     }
   }, [realtimeChapters]);
 
   useEffect(() => {
-    if (realtimeGroups && realtimeGroups.length > 0) {
+    if (realtimeGroups) {
       setGroups(realtimeGroups);
     }
   }, [realtimeGroups]);
@@ -146,21 +146,21 @@ export const AdminNotesTab: React.FC<AdminNotesTabProps> = ({
 
   // Chapter Handlers
   const handleSaveChapter = async (savedChapter: Chapter) => {
-    await AdminService.saveChapter(savedChapter);
-    setChapters(prev => {
-      const exists = prev.some(c => c.id === savedChapter.id);
-      if (exists) {
-        return prev.map(c => c.id === savedChapter.id ? savedChapter : c);
-      }
-      return [savedChapter, ...prev];
-    });
+    const res = await AdminService.saveChapter(savedChapter);
+    if (!res.success) {
+      throw new Error(res.error || 'Failed to persist chapter in Firestore database.');
+    }
+    // Single source of truth: No temporary local state injection.
+    // The Firestore onSnapshot listener will update realtimeChapters automatically upon write confirmation.
   };
 
   const handleDeleteChapter = async (chapterId: string) => {
     if (!window.confirm('Are you sure you want to delete this chapter and all its topics?')) return;
     try {
-      await AdminService.deleteChapter(chapterId);
-      setChapters(prev => prev.filter(c => c.id !== chapterId));
+      const res = await AdminService.deleteChapter(chapterId);
+      if (!res.success) {
+        alert(res.error || 'Failed to delete chapter from Firestore.');
+      }
     } catch (err: any) {
       alert(err.message || 'Failed to delete chapter');
     }
@@ -223,22 +223,22 @@ export const AdminNotesTab: React.FC<AdminNotesTabProps> = ({
 
   // Filter chapters
   const filteredChapters = chapters.filter(c => {
-    if (levelFilter !== 'all' && c.educationLevel !== levelFilter) return false;
-    if (classFilter !== 'all' && c.classOrCourse !== classFilter) return false;
-    if (mediumFilter !== 'all' && c.medium !== mediumFilter) return false;
+    if (levelFilter !== 'all' && (c.educationLevel || '').toLowerCase() !== levelFilter.toLowerCase()) return false;
+    if (classFilter !== 'all' && (c.classOrCourse || c.classLevel || '').toLowerCase() !== classFilter.toLowerCase()) return false;
+    if (mediumFilter !== 'all' && (c.medium || '').toLowerCase() !== mediumFilter.toLowerCase()) return false;
     if (groupFilter !== 'all') {
       if (groupFilter === '__none__') {
-        if (c.groupId) return false;
+        if (c.groupId && c.groupId.trim() !== '') return false;
       } else if (c.groupId !== groupFilter) {
         return false;
       }
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const matchTitle = c.title.toLowerCase().includes(q);
-      const matchSub = c.subject.toLowerCase().includes(q);
-      const matchClass = c.classOrCourse.toLowerCase().includes(q);
-      const matchTopics = (c.topics || []).some(t => t.topicName.toLowerCase().includes(q));
+      const matchTitle = (c.title || '').toLowerCase().includes(q);
+      const matchSub = (c.subject || '').toLowerCase().includes(q);
+      const matchClass = (c.classOrCourse || c.classLevel || '').toLowerCase().includes(q);
+      const matchTopics = (c.topics || []).some(t => (t.topicName || '').toLowerCase().includes(q));
       if (!matchTitle && !matchSub && !matchClass && !matchTopics) return false;
     }
     return true;

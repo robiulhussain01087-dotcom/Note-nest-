@@ -79,13 +79,13 @@ export const AdminGroupsTab: React.FC<AdminGroupsTabProps> = ({ onNavigateToChap
   const { groups: realtimeGroups, chapters: realtimeChapters, isLive } = useCurriculum();
 
   useEffect(() => {
-    if (realtimeGroups && realtimeGroups.length > 0) {
+    if (realtimeGroups) {
       setGroups(realtimeGroups);
     }
   }, [realtimeGroups]);
 
   useEffect(() => {
-    if (realtimeChapters && realtimeChapters.length > 0) {
+    if (realtimeChapters) {
       setChapters(realtimeChapters);
     }
   }, [realtimeChapters]);
@@ -302,16 +302,10 @@ export const AdminGroupsTab: React.FC<AdminGroupsTabProps> = ({ onNavigateToChap
 
   // Save new chapter created directly into a group
   const handleSaveChapterFromGroup = async (savedChapter: Chapter) => {
-    await AdminService.saveChapter(savedChapter);
-    setChapters(prev => {
-      const idx = prev.findIndex(c => c.id === savedChapter.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = savedChapter;
-        return next;
-      }
-      return [savedChapter, ...prev];
-    });
+    const res = await AdminService.saveChapter(savedChapter);
+    if (!res.success) {
+      throw new Error(res.error || 'Failed to save chapter to Firestore.');
+    }
 
     if (savedChapter.groupId) {
       const grp = groups.find(g => g.id === savedChapter.groupId);
@@ -323,7 +317,6 @@ export const AdminGroupsTab: React.FC<AdminGroupsTabProps> = ({ onNavigateToChap
           chapterOrder: updatedChapterIds
         };
         await AdminService.saveGroup(updatedGrp);
-        setGroups(prev => prev.map(g => g.id === grp.id ? updatedGrp : g));
       }
     }
 

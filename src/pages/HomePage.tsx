@@ -55,7 +55,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   const displayChapters = useMemo(() => {
     let list = allChapters;
     if (selectedEducationLevel !== 'all') {
-      list = list.filter(c => c.educationLevel === selectedEducationLevel);
+      list = list.filter(c => (c.educationLevel || '').toLowerCase() === selectedEducationLevel.toLowerCase());
     }
     return list.slice(0, 6);
   }, [allChapters, selectedEducationLevel]);

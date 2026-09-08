@@ -49,13 +49,13 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({
   const { groups: realtimeGroups, chapters: realtimeChapters } = useCurriculum();
 
   useEffect(() => {
-    if (realtimeGroups && realtimeGroups.length > 0) {
+    if (realtimeGroups) {
       setGroups(realtimeGroups);
     }
   }, [realtimeGroups]);
 
   useEffect(() => {
-    if (realtimeChapters && realtimeChapters.length > 0) {
+    if (realtimeChapters) {
       setChapters(realtimeChapters);
     }
   }, [realtimeChapters]);

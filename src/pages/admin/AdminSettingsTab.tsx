@@ -220,7 +220,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({ filterSectio
                 <span>Administrator Profile</span>
               </h3>
               <p className="text-xs text-slate-400 mt-1">
-                Authenticated session identity verified via Firebase Auth and Firestore <code className="text-purple-300">/users/{user?.uid || 'admin'}</code>.
+                Authenticated session identity verified via Firebase Auth and Firestore <code className="text-purple-300">/users/{user?.uid || '—'}</code>.
               </p>
             </div>
             <span className="px-3 py-1 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-bold rounded-full flex items-center gap-1.5">

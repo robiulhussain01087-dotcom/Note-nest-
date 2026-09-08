@@ -11,8 +11,9 @@ import {
   orderBy,
   onSnapshot
 } from 'firebase/firestore';
-import { getFirebaseDB } from './firebase';
+import { getFirebaseDB, getFirebaseAuth, getFirebaseConfig } from './firebase';
 import { NoteNestDB } from './db';
+import { normalizeChapter } from './curriculumRealtime';
 import { User, Note, Order, Purchase, Payment, PaymentSettings, WebsiteSettings, Chapter, Topic, AcademicSettings, Group } from '../types';
 import { getActiveQrCodePath } from '../utils/assetService';
 
@@ -942,18 +943,23 @@ export class AdminService {
   }
 
   static async saveGroup(group: Group): Promise<{ success: boolean; group: Group; error?: string }> {
-    const saved = NoteNestDB.saveGroup(group);
     try {
       const db = getFirebaseDB();
-      const docId = saved.id || saved.groupId;
+      const docId = group.id || group.groupId || `grp-${Date.now()}`;
+      const groupPayload: Group = {
+        ...group,
+        id: docId,
+        groupId: docId,
+        updatedAt: new Date().toISOString()
+      };
+      const cleanData = sanitizeForFirestore(groupPayload);
       const ref = doc(db, 'groups', docId);
-      await withTimeout(setDoc(ref, sanitizeForFirestore(saved), { merge: true }), 5000);
+      await withTimeout(setDoc(ref, cleanData, { merge: true }), 15000);
 
       // Synchronize chapter associations in Firestore
-      // Update assigned chapters with groupId, and unlink removed chapters without duplicating/deleting content
       try {
         const allChapters = await this.fetchChapters();
-        const chapterIds = saved.chapterIds || [];
+        const chapterIds = groupPayload.chapterIds || [];
         const syncPromises: Promise<any>[] = [];
 
         // 1. Link assigned chapters
@@ -975,10 +981,12 @@ export class AdminService {
         console.warn('[AdminService] Chapter association sync warning:', syncErr);
       }
 
+      const saved = NoteNestDB.saveGroup(groupPayload);
       return { success: true, group: saved };
     } catch (err: any) {
-      logFirestoreError(err, OperationType.WRITE, `groups/${saved.id}`);
-      return { success: true, group: saved };
+      logFirestoreError(err, OperationType.WRITE, `groups/${group.id}`);
+      console.error('[AdminService.saveGroup] Error saving group:', err);
+      return { success: false, group, error: err?.message || 'Failed to persist group in Firestore.' };
     }
   }
 
@@ -1064,51 +1072,166 @@ export class AdminService {
   // 7. CHAPTERS & CURRICULUM MANAGEMENT: Multi-Education Hierarchy
   // =========================================================================
   static async fetchChapters(): Promise<Chapter[]> {
-    const local = NoteNestDB.getChapters();
     try {
       const db = getFirebaseDB();
       const q = query(collection(db, 'chapters'));
-      const snapshot = await withTimeout(getDocs(q), 5000);
-      if (!snapshot.empty) {
-        const firestoreChapters: Chapter[] = [];
-        snapshot.forEach(docSnap => {
-          firestoreChapters.push(docSnap.data() as Chapter);
-        });
-        // Sort by chapterNumber / createdAt
-        firestoreChapters.sort((a, b) => (a.chapterNumber || 0).toString().localeCompare((b.chapterNumber || 0).toString(), undefined, { numeric: true }));
-        NoteNestDB.saveChapters(firestoreChapters);
-        return firestoreChapters;
-      }
-      return local;
+      const snapshot = await withTimeout(getDocs(q), 10000);
+      const firestoreChapters: Chapter[] = [];
+      snapshot.forEach(docSnap => {
+        firestoreChapters.push(normalizeChapter({ ...docSnap.data(), id: docSnap.id }));
+      });
+      // Sort by chapterNumber / createdAt
+      firestoreChapters.sort((a, b) => {
+        const numA = Number(a.chapterNumber);
+        const numB = Number(b.chapterNumber);
+        if (!isNaN(numA) && !isNaN(numB)) {
+          return numA - numB;
+        }
+        return String(a.chapterNumber || '').localeCompare(String(b.chapterNumber || ''), undefined, { numeric: true });
+      });
+      NoteNestDB.saveChapters(firestoreChapters);
+      return firestoreChapters;
     } catch (err: any) {
       logFirestoreError(err, OperationType.LIST, 'chapters');
-      return local;
+      return NoteNestDB.getChapters();
     }
   }
 
   static async saveChapter(chapter: Chapter): Promise<{ success: boolean; chapter: Chapter; error?: string }> {
-    const saved = NoteNestDB.saveChapter(chapter);
+    if (!chapter.id) {
+      throw new Error('Chapter ID is required for Firestore persistence.');
+    }
+    if (!chapter.title || !chapter.title.trim()) {
+      throw new Error('Chapter title is required.');
+    }
+
+    // Verify active Firebase Auth session before attempting write
+    const auth = getFirebaseAuth();
+    const currentUser = auth.currentUser;
+    const db = getFirebaseDB();
+    const config = getFirebaseConfig();
+
+    console.log('[AdminService.saveChapter DIAGNOSTIC] --- STEP 1: AUTHENTICATION CHECK ---');
+    console.log('[AdminService.saveChapter DIAGNOSTIC] auth.currentUser exists:', Boolean(currentUser));
+    console.log('[AdminService.saveChapter DIAGNOSTIC] auth.currentUser.uid:', currentUser ? currentUser.uid : 'null');
+    console.log('[AdminService.saveChapter DIAGNOSTIC] auth.currentUser.email:', currentUser ? currentUser.email : 'null');
+    console.log('[AdminService.saveChapter DIAGNOSTIC] auth.currentUser.isAnonymous:', currentUser?.isAnonymous ?? false);
+    console.log('[AdminService.saveChapter DIAGNOSTIC] Config Project ID:', config.projectId);
+    console.log('[AdminService.saveChapter DIAGNOSTIC] Config firestoreDatabaseId:', config.firestoreDatabaseId);
+
+    if (!currentUser) {
+      console.error('[AdminService.saveChapter] No authenticated Firebase Auth user found.');
+      return {
+        success: false,
+        chapter,
+        error: 'Authentication required. No active administrator session found in Firebase Auth.'
+      };
+    }
+
     try {
-      const db = getFirebaseDB();
-      const ref = doc(db, 'chapters', chapter.id);
-      await withTimeout(setDoc(ref, sanitizeForFirestore(saved), { merge: true }), 5000);
+      // Ensure the authentication token is fresh and actively verified
+      await currentUser.getIdToken(false);
+      console.log('[AdminService.saveChapter DIAGNOSTIC] Firebase Auth ID token verified successfully');
+    } catch (tokenErr: any) {
+      console.warn('[AdminService.saveChapter DIAGNOSTIC] Warning refreshing auth token:', tokenErr?.message);
+    }
+
+    // STEP 2: Safe Document Verification (Read-only check, does NOT modify user document)
+    let userDocExists = false;
+    let userDocRole: string | undefined = undefined;
+    try {
+      const userDocRef = doc(db, 'users', currentUser.uid);
+      const userDocSnap = await withTimeout(getDoc(userDocRef), 5000);
+      userDocExists = userDocSnap.exists();
+      if (userDocExists) {
+        const uData = userDocSnap.data();
+        userDocRole = uData?.role;
+        console.log('[AdminService.saveChapter DIAGNOSTIC] --- STEP 2: ADMIN DOCUMENT FOUND ---');
+        console.log('[AdminService.saveChapter DIAGNOSTIC] /users/' + currentUser.uid + ' role:', userDocRole);
+      } else {
+        console.warn('[AdminService.saveChapter DIAGNOSTIC] --- STEP 2: ADMIN DOCUMENT MISSING at /users/' + currentUser.uid);
+      }
+    } catch (readErr: any) {
+      console.warn('[AdminService.saveChapter DIAGNOSTIC] Could not read /users/' + currentUser.uid + ':', readErr?.message);
+    }
+
+    // 1. Fully normalize chapter data
+    const normalized = normalizeChapter(chapter);
+    const cleanPayload = sanitizeForFirestore({
+      ...normalized,
+      groupId: normalized.groupId || '',
+      updatedAt: new Date().toISOString()
+    });
+
+    try {
+      const ref = doc(db, 'chapters', normalized.id);
+      console.log('[AdminService.saveChapter DIAGNOSTIC] Writing to path: chapters/' + normalized.id);
+
+      // 2. Persist to Firestore with 15-second timeout for reliable network/iframe connection
+      await withTimeout(setDoc(ref, cleanPayload, { merge: true }), 15000);
+
+      // 3. If chapter is assigned to a group, ensure the group document in Firestore links this chapter
+      if (normalized.groupId) {
+        try {
+          const groupRef = doc(db, 'groups', normalized.groupId);
+          const groupSnap = await withTimeout(getDoc(groupRef), 5000);
+          if (groupSnap.exists()) {
+            const grpData = groupSnap.data();
+            const chapterIds: string[] = Array.isArray(grpData.chapterIds) ? grpData.chapterIds : [];
+            if (!chapterIds.includes(normalized.id)) {
+              const updatedChapterIds = [...chapterIds, normalized.id];
+              const chapterOrder = Array.isArray(grpData.chapterOrder) && grpData.chapterOrder.length > 0
+                ? [...grpData.chapterOrder, normalized.id]
+                : updatedChapterIds;
+              await setDoc(groupRef, { chapterIds: updatedChapterIds, chapterOrder, updatedAt: new Date().toISOString() }, { merge: true });
+            }
+          }
+        } catch (grpErr) {
+          console.warn('[AdminService] Group association sync during saveChapter warning:', grpErr);
+        }
+      }
+
+      // 4. Update local cache ONLY AFTER Firestore write succeeds
+      const saved = NoteNestDB.saveChapter(normalized);
       return { success: true, chapter: saved };
     } catch (err: any) {
-      logFirestoreError(err, OperationType.WRITE, `chapters/${chapter.id}`);
-      return { success: true, chapter: saved };
+      logFirestoreError(err, OperationType.WRITE, `chapters/${normalized.id}`);
+      console.error('[AdminService.saveChapter] Critical persistence failure:', err);
+      let errorMessage = err?.message || 'Failed to save chapter to Firestore database.';
+      if (err?.code === 'permission-denied' || errorMessage.includes('Missing or insufficient permissions')) {
+        errorMessage = `Missing or insufficient permissions. Authenticated Firebase Auth user (${currentUser.email || 'none'}, UID: ${currentUser.uid}) failed Firestore security rules at /users/${currentUser.uid} (document ${userDocExists ? `has role: "${userDocRole || 'none'}"` : 'DOES NOT EXIST'}). If this account is not the intended NoteNest Admin account, you must log in with the existing admin account instead of modifying data.`;
+      }
+      return { success: false, chapter: normalized, error: errorMessage };
     }
   }
 
   static async deleteChapter(id: string): Promise<{ success: boolean; error?: string }> {
-    NoteNestDB.deleteChapter(id);
+    // Verify active Firebase Auth session before attempting delete
+    const auth = getFirebaseAuth();
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      return {
+        success: false,
+        error: 'Authentication required. No active administrator session found in Firebase Auth.'
+      };
+    }
+
+    try {
+      await currentUser.getIdToken(false);
+    } catch (tokenErr) {
+      console.warn('[AdminService.deleteChapter] Warning refreshing auth token:', tokenErr);
+    }
+
     try {
       const db = getFirebaseDB();
       const ref = doc(db, 'chapters', id);
-      await withTimeout(deleteDoc(ref), 5000);
+      await withTimeout(deleteDoc(ref), 15000);
+      NoteNestDB.deleteChapter(id);
       return { success: true };
     } catch (err: any) {
       logFirestoreError(err, OperationType.DELETE, `chapters/${id}`);
-      return { success: true };
+      console.error('[AdminService.deleteChapter] Critical deletion failure:', err);
+      return { success: false, error: err?.message || 'Failed to delete chapter from Firestore.' };
     }
   }
 

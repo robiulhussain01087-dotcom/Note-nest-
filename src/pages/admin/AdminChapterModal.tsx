@@ -301,7 +301,7 @@ export const AdminChapterModal: React.FC<AdminChapterModalProps> = ({
       chapterId,
       title: title.trim(),
       chapterNumber: chapterNumber.trim() || '1',
-      groupId: groupId ? groupId : undefined,
+      groupId: groupId ? groupId.trim() : '',
       description: description.trim(),
       educationLevel,
       classOrCourse,
@@ -316,6 +316,9 @@ export const AdminChapterModal: React.FC<AdminChapterModalProps> = ({
       offerPrice: numOffer,
       price: numOffer, // Customer pays ONLY offerPrice
       pdfUrl: pdfUrl.trim(),
+      completeChapterPdfLink: pdfUrl.trim(),
+      videoUrl: (finalTopics[0]?.videoUrl || '').trim(),
+      slidesUrl: (finalTopics[0]?.slidesUrl || '').trim(),
       topicsCount: finalTopics.length,
       topics: finalTopics,
       published,
@@ -328,7 +331,8 @@ export const AdminChapterModal: React.FC<AdminChapterModalProps> = ({
       await onSave(payload);
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Failed to save chapter.');
+      console.error('[AdminChapterModal] Save failed:', err);
+      setError(err.message || 'Failed to save chapter to Firestore database.');
       setSaving(false);
     }
   };

@@ -15,6 +15,7 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
   serverTimestamp,
   mapFirebaseRegistrationError,
   mapFirebaseLoginError,
@@ -140,7 +141,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('[FIRESTORE] Document missing at path:', firestorePath, 'caller:', callerContext || 'general');
 
           // If logging in as Admin: Admin accounts must already exist in Firestore with role: "admin".
-          // Do not auto-create customer profile, do not classify as customer, return clear error.
           if (callerContext === 'loginAdmin') {
             logAdminDiagnostics({
               authUid: currentUid,
@@ -153,36 +153,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
 
             setUser(null);
-            const errorMsg = 'Admin profile not found';
+            const errorMsg = `No administrator profile found at Firestore path /users/${currentUid} for account ${currentEmail || 'unknown'}. If this is not the intended NoteNest Admin account, you must log in with the existing admin account instead of modifying data.`;
             setProfileError(errorMsg);
             return { user: null, role: undefined, error: errorMsg, exists: false };
           }
 
-          // Requirement 3: For customer login, onAuthStateChanged, or general registration:
-          // DO NOT treat Firebase authentication as failed.
-          // Create the customer profile automatically at: /users/{currentUser.uid}
-          // with safe fields: { uid, email, role: "customer", createdAt: serverTimestamp() }
-          // Never overwrite an existing admin profile (since document did not exist).
-          console.log('[FIRESTORE] Customer profile missing, auto-creating customer profile for UID:', currentUid);
+          // For customer sessions: do NOT automatically write/overwrite existing Firestore documents during load.
           const displayName = firebaseUser.displayName || (currentEmail ? currentEmail.split('@')[0] : 'Customer');
           const nowIso = new Date().toISOString();
-
-          try {
-            await withTimeout(
-              setDoc(userDocRef, {
-                uid: currentUid,
-                name: displayName,
-                email: currentEmail,
-                role: 'customer',
-                createdAt: serverTimestamp()
-              }),
-              FIRESTORE_WRITE_TIMEOUT_MS,
-              'Profile creation timed out'
-            );
-            console.log('[FIRESTORE] Auto-created customer profile successfully in Firestore for UID:', currentUid);
-          } catch (writeErr) {
-            console.warn('[FIRESTORE] Customer profile auto-create write notice (continuing):', writeErr);
-          }
 
           const customerUser: User = {
             uid: currentUid,
@@ -196,8 +174,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           activeUserRef.current = customerUser;
           setProfileError(null);
           NoteNestDB.syncUserProfile(customerUser);
-          console.log('[AUTH] Customer profile auto-created and active for UID:', currentUid);
-          return { user: customerUser, role: 'customer' as const, error: undefined, exists: true };
+          console.log('[AUTH] Customer session active in memory for UID:', currentUid);
+          return { user: customerUser, role: 'customer' as const, error: undefined, exists: false };
         }
 
         console.log('[FIRESTORE] Profile document found for UID:', currentUid);
@@ -207,8 +185,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const normalizedRole = typeof rawRole === 'string' ? rawRole.trim().toLowerCase() : '';
 
         if (normalizedRole === 'admin') {
-          // Requirement 4: If profile.role === "admin" then allow access to: /admin/dashboard
-          // Keep existing Admin routing exactly as it is. Do not convert to customer.
+          // Keep existing Admin routing. Never overwrite or normalize Firestore role field automatically.
           logAdminDiagnostics({
             authUid: currentUid,
             authEmail: currentEmail,
@@ -594,9 +571,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: true, role: 'admin' };
       }
 
+      const roleFound = res.role || 'none';
       return {
         success: false,
-        error: 'Admin profile not found'
+        error: `Authenticated account (${cleanEmail}, UID: ${currentUser.uid}) has role "${roleFound}". If this is not the intended NoteNest Admin account, you must log in with the existing admin account instead of modifying data.`
       };
     } catch (authErr: any) {
       console.error('[AUTH] Admin signInWithEmailAndPassword failed:', authErr?.code, authErr?.message);
